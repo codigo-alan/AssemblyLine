@@ -13,57 +13,67 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        //Worker 1
-        repeat(5) {
-            CoroutineScope(Dispatchers.IO).launch {
-                worker1Async()
+        //worker 3
+        val deferredWorker3 = CoroutineScope(Dispatchers.IO).async { worker3() }
+
+        val deferredWorker12 = CoroutineScope(Dispatchers.Main).async {
+            //Worker 1
+            var worker1IntResultsList = listOf<Int>()
+            repeat(5) {
+                worker1IntResultsList += worker1()
                 delay(3000)
             }
+            binding.resultTv1.text = worker1IntResultsList.toString()
+
+            //Worker 2
+            val deferredWorker2 = CoroutineScope(Dispatchers.IO).async { worker2(worker1IntResultsList) }
+            val resultWorker2 = deferredWorker2.await()
+            binding.resultTv2.text = resultWorker2.toString()
+            return@async resultWorker2
         }
 
-        //worker 3
-        CoroutineScope(Dispatchers.IO).launch {
-            worker1Async()
-            delay(3000)
-        }
-
-        //worker 4 execute 2 and 3 workers works
         CoroutineScope(Dispatchers.Main).launch {
-            val worker23 = listOf(worker1Async(), worker3Async())
-            val receivedListWorks23 = worker23.awaitAll() //work of 2 and 3 finished
+            //Worker 4
+            val resultWorker23 = listOf(deferredWorker12, deferredWorker3).awaitAll()
 
-            var packagesDifference = if (receivedListWorks23.first() == receivedListWorks23.last()) {
+            binding.resultTv3.text = resultWorker23.last().toString()
+
+            var packagesDifference = if (resultWorker23.first() == resultWorker23.last()) {
                 0
-            }else{
-                receivedListWorks23.first() - receivedListWorks23.last()
+            } else {
+                resultWorker23.first() - resultWorker23.last()
             }
 
             if (packagesDifference == 0) {
                 binding.resultTv4.text = "Correct packaging done!"
-            }else if(packagesDifference < 0){
+            } else if (packagesDifference < 0) {
                 binding.resultTv4.text = "Remain $packagesDifference packages"
-            }else{
+            } else {
                 binding.resultTv4.text = "Left over $packagesDifference packages"
             }
-
         }
 
     }
 
-    private suspend fun worker1Async(): Deferred<Int> {
-        return CoroutineScope(Dispatchers.IO).async { worker1() }
-    }
-
     private fun worker1(): Int {
-        val units = (3..21).random()
-        return units
+        return (3..21).random()
     }
+    private suspend fun worker2(units: List<Int>): Int {
+        val packsList = mutableListOf<Int>()
 
-    private fun worker3Async() = CoroutineScope(Dispatchers.IO).async { worker3() }
+        units.forEach {
+            packsList += (it / 4)
+        }
+
+        packsList.forEach {
+            repeat(it){ delay(1000) }
+        }
+        return packsList.sum()
+    }
     private suspend fun worker3(): Int {
         val elapsedTime = (10000..20000 step 1000).shuffled().first().toLong()
         delay(elapsedTime)
-        val positionQty = listOf<Int>(2, 3, 4).shuffled().first()
-        return positionQty
+        return listOf(2, 3, 4).shuffled().first()
     }
+
 }
